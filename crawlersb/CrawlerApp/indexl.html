@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Crawler Search</title>
+    <!-- Include jQuery library -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+     <!-- Include Bootstrap CSS for table styling -->
+     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f1f1f1;
+             color: #333;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+
+        #searchContainer {
+            margin: 0 auto;
+            max-width: 400px;
+            padding: 10px;
+            border: 5px solid #007bff;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            
+        }
+
+         /* New CSS style for the red background */
+         #searchContainer .search-content {
+            background-color: rgb(9, 183, 9);
+            padding: 10px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: none; /* Remove default input border */
+            outline: none; 
+            box-sizing: border-box; /* Remove focus outline */
+        }
+
+        input[type="submit"] {
+            width: 50%; /* Set the width of the search button to 50% of the search box */
+            padding: 10px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: #fff;
+            border: 2px solid #007bff;
+            border-radius: 20px;
+            cursor: pointer;
+            outline: none;
+            margin-top: 10px;
+            transition: background-color 0.2s ease;
+        }
+
+        input[type="submit"]:hover {
+        background-color: #0056b3;
+         }
+
+         
+
+        #results {
+            margin-top: 20px;
+        }
+
+        table {
+        width: 100%;
+        margin-top: 10px;
+        border-collapse: collapse;
+        }
+
+        th, td {
+        padding: 8px;
+        text-align: left;
+        }
+
+        th {
+            background-color: #007bff;
+            color: #fff;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #d9d9d9;
+        }
+
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li {
+            margin-bottom: 10px;
+        }
+
+        ul li a {
+            text-decoration: none;
+            color: blue;
+        }
+
+        .highlight {
+            background-color: yellow;
+        }
+
+        #pagination {
+            margin-top: 10px;
+        }
+
+        #pagination button {
+        margin: 5px;
+        padding: 5px 10px;
+        font-size: 14px;
+        cursor: pointer;
+        border: 2px solid #007bff;
+        border-radius: 20px;
+        background-color: #fff;
+        color: #007bff;
+        outline: none;
+        transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    #pagination button.active {
+        background-color: #007bff;
+        color: #fff;
+    }
+
+    #pagination button:hover {
+        background-color: #0056b3;
+        color: #fff;
+    }
+
+        .container{
+            display: flex;
+    flex-direction: column;
+    align-items: center; 
+        }
+
+        .highlight {
+            background-color: yellow;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <h1>Web Crawler Search</h1>
+    <div id="searchContainer">
+        <div class="search-content">
+            <input type="text" id="query" name="query" placeholder="Enter your search query">
+        <input type="submit" id="searchButton" value="Search">
+        </div>
+        
+    </div>
+    <div id="results">
+        <!-- Search results will be displayed here -->
+    </div>
+    <div id="pagination">
+        <!-- Pagination controls will be displayed here -->
+    </div>
+    <div id="content">
+        <!-- Content of the selected URL will be displayed here -->
+    </div>
+    </div>
+
+    <script>
+        var currentPage = 1;
+        var totalPages = 1;
+        var searchResults = [];
+        var queryTerms = []; // Store the query terms for highlighting
+
+        // Function to handle pagination navigation
+        function goToPage(pageNum) {
+            if (pageNum >= 1 && pageNum !== currentPage) {
+                currentPage = pageNum;
+                displayResults();
+            }
+        }
+
+        // Function to highlight search terms in the content of the URL
+        function highlightSearchTermsInContent(url, queryTerms) {
+            $.ajax({
+                type: "POST",
+                url: url,
+                dataType: "html",
+                crossDomain: true,
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function (data) {
+                    // Highlight each query term in the content
+                    for (var term of queryTerms) {
+                        var regex = new RegExp(term, 'gi');
+                        data = data.replace(regex, '<span class="highlight">' + term + '</span>');
+                    }
+                    // Display the content with highlighted terms
+                    var contentDiv = $("#content");
+                    contentDiv.html(data);
+                },
+                error: function () {
+                    alert("Error occurred while fetching the URL content.");
+                }
+            });
+        }
+
+        function displayResults() {
+            var resultsDiv = $("#results");
+            resultsDiv.empty();
+
+            if (searchResults.length === 0) {
+                resultsDiv.append("<p>No relevant URLs found.</p>");
+            } else {
+                var pageSize = 5;
+                // var totalPages = Math.ceil(totalResults / pageSize);
+                var startIndex = (currentPage - 1) * pageSize;
+                var endIndex = Math.min(startIndex + pageSize, searchResults.length);
+
+                var table = $("<table class='table table-bordered table-striped'>");
+                table.append("<thead><tr><th>URL</th></tr></thead>");
+
+                var tbody = $("<tbody>");
+        for (var i = startIndex; i < endIndex; i++) {
+            var url = searchResults[i];
+            var rank = i + 1; // Rank starts from 1
+            var row = $("<tr>");
+            
+            row.append("<td><a href='" + url + "' onclick='highlightSearchTermsInContent(\"" + url + "\", " + JSON.stringify(queryTerms) + ")'>" + url + "</a></td>");
+            row.append("<td>" + rank + "</td>");
+            tbody.append(row);
+        }
+
+        table.append(tbody);
+        resultsDiv.append(table);
+ 
+                
+                // Update pagination controls
+                var paginationDiv = $("#pagination");
+                paginationDiv.empty();
+                var totalPages = Math.ceil(searchResults.length / pageSize);
+                if (totalPages > 1) {
+                    // Previous button
+                    if (currentPage > 1) {
+                        paginationDiv.append("<button onclick='goToPage(" + (currentPage - 1) + ")'>Previous</button>");
+                    }
+
+                    // Page number buttons
+                    for (var pageNum = 1; pageNum <= totalPages; pageNum++) {
+                        var buttonClass = pageNum === currentPage ? "active" : "";
+                        paginationDiv.append("<button class='" + buttonClass + "' onclick='goToPage(" + pageNum + ")'>" + pageNum + "</button>");
+                    }
+
+                    // Next button
+                    if (currentPage < totalPages) {
+                        paginationDiv.append("<button onclick='goToPage(" + (currentPage + 1) + ")'>Next</button>");
+                    }
+                }
+            }
+        }
+
+        function highlightSearchTerms(queryTerms) {
+                $.ajax({
+                    type: "POST",
+                    url: "http://localhost:8080/api/fetch-content",
+                    data: { url: url },
+                    dataType: "html",
+                    crossDomain: true,
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    success: function (data) {
+                        var contentDiv = $("#content");
+                        contentDiv.html(text);
+                        var queryTerms = $("#query").val().toLowerCase().split(/\s+|\+/);
+                        highlightTermsInContentInContent(url,queryTerms);
+                    },
+                    error: function () {
+                        alert("Error occurred while fetching the URL content.");
+                    }
+                });
+            }
+
+
+            function highlightTermsInContent(queryTerms) {
+            var contentDiv = $("#content");
+            var content = contentDiv.html();
+
+            // Remove previous highlight
+            contentDiv.find(".highlight").removeClass("highlight");
+
+            // Highlight each query term in the content
+            for (var term of queryTerms) {
+                var regex = new RegExp(term, 'gi');
+                content = content.replace(regex, '<span class="highlight">' + term + '</span>');
+            }
+
+            // Display the content with highlighted terms
+            contentDiv.html(content);
+        }
+
+
+        function search() {
+            // Clear previous highlighted content
+             $("#content").empty();
+            var query = $("#query").val();
+
+            if (query.trim() === "") {
+                alert("Please enter a search query.");
+                return;
+            }
+
+            $.ajax({
+                type: "POST",
+                url: "http://localhost:8080/api/search",
+                data: JSON.stringify({ query: "query=" + query }),
+                contentType: "application/json",
+                dataType: "json",
+                crossDomain: true,
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function (data) {
+                    searchResults = data.results;
+                    currentPage = 1;
+                    totalPages = data.totalPages;
+                    queryTerms = query.toLowerCase().split(/\s+|\+/); // Store the query terms for highlighting
+
+                    console.log("Search Results Received:", data); // Added logging
+                    console.log("Total Pages:", totalPages); // Added logging
+                    console.log("Search Results:", searchResults); // Added logging
+
+                    displayResults();
+                },
+                error: function () {
+                    alert("Error occurred while searching.");
+                }
+            });
+        }
+
+        $(document).ready(function () {
+            $("#searchButton").click(function () {
+                search();
+            });
+
+            $("#query").keypress(function (event) {
+                if (event.keyCode === 13) {
+                    event.preventDefault();
+                    search();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
